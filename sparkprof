@@ -4,6 +4,12 @@ import re
 import sys
 import subprocess
 
+
+COLOR_RED = '\033[0;31m'
+COLOR_YELLOW = '\033[0;33m'
+COLOR_NONE = '\033[0m'
+
+
 args = [a for a in sys.argv[1:] if not a.startswith('--steps-warn=') and not a.startswith('--steps-error=')] + ['--report=statistics']
 
 steps_warn  = next((int(x[13:]) for x in sys.argv[1:] if x.startswith('--steps-warn=')), None)
@@ -19,13 +25,13 @@ for line in gp.stdout:
             steps = int(n.group(5))
             emit = None
             if steps_error and steps >= steps_error:
-                emit = "error"
+                emit = COLOR_RED + "error"
             elif steps_warn and steps >= steps_warn:
-                emit = "warning"
+                emit = COLOR_YELLOW + "warning"
 
             if emit:
                 template = "{intro} {level}: too many steps: {type} proved ({prover}: {vcs} VC in " \
-                           + "max ({time}) seconds and {steps} steps){rest}"
+                           + "max ({time}) seconds and {steps} steps){rest}" + COLOR_NONE
                 print(template.format(
                     intro  = m.group(1),
                     level  = emit,
