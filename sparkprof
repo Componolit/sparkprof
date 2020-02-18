@@ -53,3 +53,5 @@ print("-" * 80)
 for unit, steps in max_steps.items():
     print(f"{unit}: {steps} steps")
 print(f"MAXIMUM: {max(max_steps.values())} steps")
+
+sys.exit(gp.returncode)
