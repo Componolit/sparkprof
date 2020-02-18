@@ -15,11 +15,14 @@ args = [a for a in sys.argv[1:] if not a.startswith('--steps-warn=') and not a.s
 steps_warn  = next((int(x[13:]) for x in sys.argv[1:] if x.startswith('--steps-warn=')), None)
 steps_error = next((int(x[14:]) for x in sys.argv[1:] if x.startswith('--steps-error=')), None)
 
+max_steps = {}
+
 gp = subprocess.Popen (['gnatprove'] + args, stdout = subprocess.PIPE, universal_newlines = True)
 for line in gp.stdout:
-    m = re.match('^(.*) info: (.*)$', line);
+    m = re.match('^((.*)\.ad.:.*) info: (.*)$', line)
     if m:
-        n = re.match('^(.*) proved \((.*): (.*) VC in max (\d.\d) seconds and (\d+) steps?\)(.*)$', m.group(2));
+        unit = m.group(2)
+        n = re.match('^(.*) proved \((.*): (.*) VC in max (\d.\d) seconds and (\d+) steps?\)(.*)$', m.group(3));
         if n:
             vcs = int(n.group(3))
             steps = int(n.group(5))
@@ -41,5 +44,12 @@ for line in gp.stdout:
                     time   = n.group(4),
                     steps  = steps,
                     rest   = n.group(6)))
+
+            max_steps[unit] = max(steps, max_steps[unit] if unit in max_steps else 0)
     else:
         sys.stdout.write(line)
+
+print("-" * 80)
+for unit, steps in max_steps.items():
+    print(f"{unit}: {steps} steps")
+print(f"MAXIMUM: {max(max_steps.values())} steps")
