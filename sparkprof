@@ -7,6 +7,7 @@ import subprocess
 
 COLOR_RED = '\033[0;31m'
 COLOR_YELLOW = '\033[0;33m'
+COLOR_RED_BOLD = '\033[1;31m'
 COLOR_NONE = '\033[0m'
 
 
@@ -15,45 +16,71 @@ args = [a for a in sys.argv[1:] if not a.startswith('--steps-warn=') and not a.s
 steps_warn  = next((int(x[13:]) for x in sys.argv[1:] if x.startswith('--steps-warn=')), None)
 steps_error = next((int(x[14:]) for x in sys.argv[1:] if x.startswith('--steps-error=')), None)
 
+units = set()
 max_steps = {}
+unproven = {}
 
 gp = subprocess.Popen (['gnatprove'] + args, stdout = subprocess.PIPE, universal_newlines = True)
 for line in gp.stdout:
-    m = re.match('^((.*)\.ad.:.*) info: (.*)$', line)
+    m = re.match('^((.*)\.ad.:\d*:\d*:) ([a-z]*): (.*)$', line)
     if m:
         unit = m.group(2)
-        n = re.match('^(.*) proved \((.*): (.*) VC in max (\d.\d) seconds and (\d+) steps?\)(.*)$', m.group(3));
-        if n:
-            vcs = int(n.group(3))
-            steps = int(n.group(5))
-            emit = None
-            if steps_error and steps >= steps_error:
-                emit = COLOR_RED + "error"
-            elif steps_warn and steps >= steps_warn:
-                emit = COLOR_YELLOW + "warning"
+        units.add(unit)
 
-            if emit:
-                template = "{intro} {level}: too many steps: {type} proved ({prover}: {vcs} VC in " \
-                           + "max ({time}) seconds and {steps} steps){rest}" + COLOR_NONE
-                print(template.format(
-                    intro  = m.group(1),
-                    level  = emit,
-                    type   = n.group(1),
-                    prover = n.group(2),
-                    vcs    = vcs,
-                    time   = n.group(4),
-                    steps  = steps,
-                    rest   = n.group(6)),
-                      flush=True)
+        level = m.group(3)
 
-            max_steps[unit] = max(steps, max_steps[unit] if unit in max_steps else 0)
+        if level == 'info':
+            unit = m.group(2)
+            n = re.match('^(.*) proved \((.*): (.*) VC in max (\d.\d) seconds and (\d+) steps?\)(.*)$', m.group(4));
+            if n:
+                vcs = int(n.group(3))
+                steps = int(n.group(5))
+                emit = None
+                if steps_error and steps >= steps_error:
+                    emit = COLOR_RED + "error"
+                elif steps_warn and steps >= steps_warn:
+                    emit = COLOR_YELLOW + "warning"
+
+                if emit:
+                    template = "{intro} {level}: too many steps: {type} proved ({prover}: {vcs} VC in " \
+                               + "max ({time}) seconds and {steps} steps){rest}" + COLOR_NONE
+                    print(template.format(
+                        intro  = m.group(1),
+                        level  = emit,
+                        type   = n.group(1),
+                        prover = n.group(2),
+                        vcs    = vcs,
+                        time   = n.group(4),
+                        steps  = steps,
+                        rest   = n.group(6)),
+                          flush=True)
+
+                max_steps[unit] = max(steps, max_steps[unit] if unit in max_steps else 0)
+
+        elif level == 'medium':
+            unproven[unit] = (unproven[unit] + 1) if unit in unproven else 1
+            print(f"{m.group(1)} {COLOR_RED_BOLD}{m.group(3)}: {m.group(4)}{COLOR_NONE}", flush=True)
+
+        else:
+            print(line, end='', flush=True)
+
     else:
         print(line, end='', flush=True)
 
-if max_steps:
+if units:
     print("-" * 80)
-    for unit, steps in max_steps.items():
-        print(f"{unit}: {steps} steps")
-    print(f"MAXIMUM: {max(max_steps.values())} steps")
+    for unit in units:
+        print(f"{unit}:", end='')
+        if unit in max_steps:
+            print(f" {max_steps[unit]} steps", end='')
+        if unit in unproven:
+            print(f" {COLOR_RED_BOLD}{unproven[unit]} VC unproven{COLOR_NONE}", end='')
+        print()
+    print(f"OVERALL:", end='')
+    if max_steps:
+        print(f" {max(max_steps.values())} steps", end='')
+    if sum(unproven.values()):
+        print(f" {COLOR_RED_BOLD}{sum(unproven.values())} VC unproven{COLOR_NONE}", end='')
+    print()
 
 sys.exit(gp.returncode)
