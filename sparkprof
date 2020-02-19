@@ -43,11 +43,12 @@ for line in gp.stdout:
                     vcs    = vcs,
                     time   = n.group(4),
                     steps  = steps,
-                    rest   = n.group(6)))
+                    rest   = n.group(6)),
+                      flush=True)
 
             max_steps[unit] = max(steps, max_steps[unit] if unit in max_steps else 0)
     else:
-        sys.stdout.write(line)
+        print(line, end='', flush=True)
 
 print("-" * 80)
 for unit, steps in max_steps.items():
