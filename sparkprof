@@ -50,9 +50,10 @@ for line in gp.stdout:
     else:
         print(line, end='', flush=True)
 
-print("-" * 80)
-for unit, steps in max_steps.items():
-    print(f"{unit}: {steps} steps")
-print(f"MAXIMUM: {max(max_steps.values())} steps")
+if max_steps:
+    print("-" * 80)
+    for unit, steps in max_steps.items():
+        print(f"{unit}: {steps} steps")
+    print(f"MAXIMUM: {max(max_steps.values())} steps")
 
 sys.exit(gp.returncode)
