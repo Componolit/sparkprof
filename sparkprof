@@ -39,7 +39,7 @@ def main() -> None:
             if level == "info":
                 unit = m.group(2)
                 n = re.match(
-                    r"^(.*) proved \((.*): (.*) VC in max (\d.\d) seconds and (\d+) steps?\)(.*)$",
+                    r"^(.*) proved \((.*): (.*) VC in max (\d+.\d) seconds and (\d+) steps?\)(.*)$",
                     m.group(4),
                 )
                 if n:
