@@ -23,6 +23,7 @@ def main() -> None:
 
     units = set()
     proof_time = {}
+    max_time = {}
     max_steps = {}
     unproven = {}
 
@@ -72,6 +73,7 @@ def main() -> None:
                         )
 
                     proof_time[unit] = (proof_time[unit] + float(time)) if unit in proof_time else float(time)
+                    max_time[unit] = max(float(time), max_time[unit] if unit in max_time else 0)
                     max_steps[unit] = max(steps, max_steps[unit] if unit in max_steps else 0)
 
             elif level == "medium":
@@ -88,10 +90,12 @@ def main() -> None:
 
     if units:
         print("-" * 100)
+        print("UNIT".ljust(40) + " MAX STEPS".ljust(13) + " MAX TIME".ljust(10) + " TOTAL TIME")
 
         total = "TOTAL"
         all_units = list(units) + [total]
         max_steps[total] = max(max_steps.values())
+        max_time[total] = max(max_time.values())
         proof_time[total] = sum(proof_time.values())
         unproven[total] = sum(unproven.values())
 
@@ -99,8 +103,10 @@ def main() -> None:
             print(f"{unit:40s}", end="")
             if unit in max_steps:
                 print(f" {max_steps[unit]:6d} steps", end="")
+            if unit in max_time:
+                print(f" {max_time[unit]:7.1f} s", end="")
             if unit in proof_time:
-                print(f" {proof_time[unit]:7.1f} seconds", end="")
+                print(f" {proof_time[unit]:7.1f} s", end="")
             if unit in unproven and unproven[unit] != 0:
                 print(f" {COLOR_RED_BOLD}{unproven[unit]:4d} VC unproven{COLOR_NONE}", end="")
             print()
