@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import re
-import sys
 import subprocess
-
+import sys
+from typing import Dict, Optional, Tuple
 
 COLOR_RED = "\033[0;31m"
 COLOR_YELLOW = "\033[0;33m"
@@ -22,71 +22,63 @@ def main() -> None:
     steps_error = next((int(x[14:]) for x in sys.argv[1:] if x.startswith("--steps-error=")), None)
 
     units = set()
-    proof_time = {}
-    max_time = {}
-    max_steps = {}
-    unproven = {}
+    proof_time: Dict[str, float] = {}
+    max_time: Dict[str, float] = {}
+    max_steps: Dict[str, int] = {}
+    unproven: Dict[str, int] = {}
 
     gp = subprocess.Popen(["gnatprove"] + args, stdout=subprocess.PIPE, universal_newlines=True)
     for line in gp.stdout:
         m = re.match(
-            r"^((\S+)\.ad[bs]:\d+:\d+:) ([a-z]+): (.+?)(, in instantiation at (\S+)\.ad[bs]:\d+)?$",
+            r"^(?P<intro>(?P<unit>\S+)\.ad[bs]:\d+:\d+:) (?P<level>[a-z]+): "
+            r"(?P<txt>.+?)(?P<instantiation>, in instantiation at (?P<instance>\S+)\.ad[bs]:\d+)?$",
             line,
         )
         if m:
-            instantiation = m.group(5) if m.group(5) else ""
-            unit = f"{m.group(2)} ({m.group(6)})" if instantiation else m.group(2)
+            instantiation = m.group("instantiation") if m.group("instantiation") else ""
+            unit = (
+                f"{m.group('unit')} ({m.group('instance')})" if instantiation else m.group("unit")
+            )
             units.add(unit)
 
-            level = m.group(3)
+            gp_level = m.group("level")
 
-            if level == "info":
+            if gp_level == "info":
                 n = re.match(
-                    r"^(.*) proved \((.*): (.*) VC in max (\d+.\d) seconds and (\d+) steps?\)(.*)$",
-                    m.group(4),
+                    r"^(?P<contract>.+) proved \("
+                    r"(?P<p1>\w+: [^;]+)"
+                    r"(?:; (?P<p2>\w+: [^;]+))?"
+                    r"(?:; (?P<p3>\w+: [^;]+))?"
+                    r"\)"
+                    r"(?P<rest>.*)$",
+                    m.group("txt"),
                 )
                 if n:
-                    vcs = int(n.group(3))
-                    time = n.group(4)
-                    steps = int(n.group(5))
-                    rest = n.group(6)
-                    emit = None
-                    if steps_error and steps >= steps_error:
-                        emit = COLOR_RED + "error"
-                    elif steps_warn and steps >= steps_warn:
-                        emit = COLOR_YELLOW + "warning"
+                    for statistics in [n.group("p1"), n.group("p2"), n.group("p3")]:
+                        if not statistics:
+                            continue
 
-                    if emit:
-                        template = (
-                            "{intro} {level}: too many steps: {type} proved ({prover}: {vcs} VC in "
-                            + "max {time} seconds and {steps} steps){rest}{instantiation}"
-                            + COLOR_NONE
-                        )
-                        print(
-                            template.format(
-                                intro=m.group(1),
-                                level=emit,
-                                type=n.group(1),
-                                prover=n.group(2),
-                                vcs=vcs,
-                                time=time,
-                                steps=steps,
-                                rest=rest,
-                                instantiation=instantiation,
-                            ),
-                            flush=True,
+                        time, steps = process_prover_statistics(
+                            statistics,
+                            steps_warn,
+                            steps_error,
+                            m.group("intro"),
+                            n.group("contract"),
+                            n.group("rest"),
+                            instantiation,
                         )
 
-                    proof_time[unit] = (
-                        (proof_time[unit] + float(time)) if unit in proof_time else float(time)
-                    )
-                    max_time[unit] = max(float(time), max_time[unit] if unit in max_time else 0)
-                    max_steps[unit] = max(steps, max_steps[unit] if unit in max_steps else 0)
+                        proof_time[unit] = (
+                            (proof_time[unit] + float(time)) if unit in proof_time else float(time)
+                        )
+                        max_time[unit] = max(float(time), max_time[unit] if unit in max_time else 0)
+                        max_steps[unit] = max(steps, max_steps[unit] if unit in max_steps else 0)
 
-            elif level == "medium":
+            elif gp_level == "medium":
                 unproven[unit] = (unproven[unit] + 1) if unit in unproven else 1
                 print(
-                    f"{m.group(1)} {COLOR_RED_BOLD}{m.group(3)}: {m.group(4)}{instantiation}{COLOR_NONE}",
+                    f"{m.group(1)} {COLOR_RED_BOLD}{m.group(3)}: {m.group(4)}{instantiation}"
+                    + COLOR_NONE,
                     flush=True,
                 )
 
@@ -127,6 +119,42 @@ def main() -> None:
             print()
 
     sys.exit(gp.returncode)
+
+
+# pylint: disable=too-many-arguments
+def process_prover_statistics(
+    statistics: str,
+    steps_warn: Optional[int],
+    steps_error: Optional[int],
+    intro: str,
+    contract: str,
+    rest: str,
+    instantiation: str,
+) -> Tuple[float, int]:
+
+    m = re.match(
+        r"^(?P<prover>\w+): "
+        r"(?P<vcs>\d+) VC in max (?P<time>\d+.\d) seconds and (?P<steps>\d+) steps?$",
+        statistics,
+    )
+    assert m is not None
+    time = float(m.group("time"))
+    steps = int(m.group("steps"))
+    level = None
+    if steps_error and steps >= steps_error:
+        level = COLOR_RED + "error"
+    elif steps_warn and steps >= steps_warn:
+        level = COLOR_YELLOW + "warning"
+
+    if level:
+        print(
+            f"{intro} {level}: too many steps: {contract} proved ({m.group('prover')}: "
+            f"{m.group('vcs')} VC in max {time:.1f} seconds and {steps} steps){rest}{instantiation}"
+            + COLOR_NONE,
+            flush=True,
+        )
+
+    return (time, steps)
 
 
 if __name__ == "__main__":
