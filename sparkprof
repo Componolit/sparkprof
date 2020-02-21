@@ -86,7 +86,7 @@ def main() -> None:
             elif level == "medium":
                 unproven[unit] = (unproven[unit] + 1) if unit in unproven else 1
                 print(
-                    f"{m.group(1)} {COLOR_RED_BOLD}{m.group(3)}: {m.group(4)}{COLOR_NONE}",
+                    f"{m.group(1)} {COLOR_RED_BOLD}{m.group(3)}: {m.group(4)}{instantiation}{COLOR_NONE}",
                     flush=True,
                 )
 
@@ -107,12 +107,12 @@ def main() -> None:
             + " TOTAL TIME"
         )
 
-        total = "TOTAL"
-        all_units = sorted(units) + [total]
-        max_steps[total] = max(max_steps.values())
-        max_time[total] = max(max_time.values())
-        proof_time[total] = sum(proof_time.values())
-        unproven[total] = sum(unproven.values())
+        overall = "ALL"
+        all_units = sorted(units) + [overall]
+        max_steps[overall] = max(max_steps.values())
+        max_time[overall] = max(max_time.values())
+        proof_time[overall] = sum(proof_time.values())
+        unproven[overall] = sum(unproven.values())
 
         for unit in all_units:
             print(unit.ljust(max_name_length), end="")
