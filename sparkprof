@@ -29,15 +29,18 @@ def main() -> None:
 
     gp = subprocess.Popen(["gnatprove"] + args, stdout=subprocess.PIPE, universal_newlines=True)
     for line in gp.stdout:
-        m = re.match(r"^((.*)\.ad.:\d*:\d*:) ([a-z]*): (.*)$", line)
+        m = re.match(
+            r"^((\S+)\.ad[bs]:\d+:\d+:) ([a-z]+): (.+?)(, in instantiation at (\S+)\.ad[bs]:\d+)?$",
+            line,
+        )
         if m:
-            unit = m.group(2)
+            instantiation = m.group(5) if m.group(5) else ""
+            unit = f"{m.group(2)} ({m.group(6)})" if instantiation else m.group(2)
             units.add(unit)
 
             level = m.group(3)
 
             if level == "info":
-                unit = m.group(2)
                 n = re.match(
                     r"^(.*) proved \((.*): (.*) VC in max (\d+.\d) seconds and (\d+) steps?\)(.*)$",
                     m.group(4),
@@ -46,6 +49,7 @@ def main() -> None:
                     vcs = int(n.group(3))
                     time = n.group(4)
                     steps = int(n.group(5))
+                    rest = n.group(6)
                     emit = None
                     if steps_error and steps >= steps_error:
                         emit = COLOR_RED + "error"
@@ -55,7 +59,7 @@ def main() -> None:
                     if emit:
                         template = (
                             "{intro} {level}: too many steps: {type} proved ({prover}: {vcs} VC in "
-                            + "max {time} seconds and {steps} steps){rest}"
+                            + "max {time} seconds and {steps} steps){rest}{instantiation}"
                             + COLOR_NONE
                         )
                         print(
@@ -67,19 +71,23 @@ def main() -> None:
                                 vcs=vcs,
                                 time=time,
                                 steps=steps,
-                                rest=n.group(6),
+                                rest=rest,
+                                instantiation=instantiation,
                             ),
                             flush=True,
                         )
 
-                    proof_time[unit] = (proof_time[unit] + float(time)) if unit in proof_time else float(time)
+                    proof_time[unit] = (
+                        (proof_time[unit] + float(time)) if unit in proof_time else float(time)
+                    )
                     max_time[unit] = max(float(time), max_time[unit] if unit in max_time else 0)
                     max_steps[unit] = max(steps, max_steps[unit] if unit in max_steps else 0)
 
             elif level == "medium":
                 unproven[unit] = (unproven[unit] + 1) if unit in unproven else 1
                 print(
-                    f"{m.group(1)} {COLOR_RED_BOLD}{m.group(3)}: {m.group(4)}{COLOR_NONE}", flush=True
+                    f"{m.group(1)} {COLOR_RED_BOLD}{m.group(3)}: {m.group(4)}{COLOR_NONE}",
+                    flush=True,
                 )
 
             else:
@@ -89,18 +97,25 @@ def main() -> None:
             print(line, end="", flush=True)
 
     if units:
-        print("-" * 100)
-        print("UNIT".ljust(40) + " MAX STEPS".ljust(13) + " MAX TIME".ljust(10) + " TOTAL TIME")
+        max_name_length = max(len(u) for u in units)
+
+        print("-" * (max_name_length + 34))
+        print(
+            "UNIT".ljust(max_name_length)
+            + " MAX STEPS".ljust(13)
+            + " MAX TIME".ljust(10)
+            + " TOTAL TIME"
+        )
 
         total = "TOTAL"
-        all_units = list(units) + [total]
+        all_units = sorted(units) + [total]
         max_steps[total] = max(max_steps.values())
         max_time[total] = max(max_time.values())
         proof_time[total] = sum(proof_time.values())
         unproven[total] = sum(unproven.values())
 
         for unit in all_units:
-            print(f"{unit:40s}", end="")
+            print(unit.ljust(max_name_length), end="")
             if unit in max_steps:
                 print(f" {max_steps[unit]:6d} steps", end="")
             if unit in max_time:
@@ -114,5 +129,5 @@ def main() -> None:
     sys.exit(gp.returncode)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
