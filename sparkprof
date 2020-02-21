@@ -16,7 +16,7 @@ def main() -> None:
         a
         for a in sys.argv[1:]
         if not a.startswith("--steps-warn=") and not a.startswith("--steps-error=")
-    ] + ["--report=statistics"]
+    ] + ["--report=statistics", "--no-counterexample"]
 
     steps_warn = next((int(x[13:]) for x in sys.argv[1:] if x.startswith("--steps-warn=")), None)
     steps_error = next((int(x[14:]) for x in sys.argv[1:] if x.startswith("--steps-error=")), None)
